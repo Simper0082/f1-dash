@@ -1,9 +1,12 @@
 # Steering wheel with screen opening and rear access plate
 
-`max_verstappen_steering_wheel_screen_window.3mf` is the "Max Verstappen Steering Wheel F1" model
-(by marconooren on MakerWorld) with the printed dashboard face removed and room for the Guition
-JC3248W535 module. Paint colours on the rest of the wheel are kept. Not opened in Bambu Studio yet,
-and still an X1 Carbon project (re-slice for P1S).
+The wheel itself is not included here. It is the "Max Verstappen Steering Wheel F1" model by
+marconooren on MakerWorld, which is published under the Standard Digital File License and may not be
+redistributed or shared in modified form. Download it from the designer's MakerWorld page; this folder
+only holds original parts and the measurements for the changes made to it.
+
+The changes remove the printed dashboard face and make room for the Guition JC3248W535 module, with the
+rest of the wheel left as the designer made it.
 
 `screen_access_plate_print.stl` is the separate rear plate, oriented rear face down for printing.
 `screen_access_plate_assembled.stl` is the same part in its place on the wheel (for fit checks).

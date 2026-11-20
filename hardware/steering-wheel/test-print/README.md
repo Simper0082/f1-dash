@@ -1,10 +1,10 @@
 # Screen pocket test print
 
-A cut-out of the wheel around the screen (154 x 83 x 41 mm) plus the rear access plate, so the fit can be
+A cut-out of the wheel around the screen (154 x 83 x 41 mm, not included) plus the rear access plate, so the fit can be
 checked without printing the whole wheel. No paint or colour is set; print everything in one grey or black filament.
 
-- `screen_pocket_test_print.3mf`: both parts laid out on one plate (P1S bed is 256 x 256 mm).
-- `wheel_screen_pocket_test.stl` is printed front face down. `screen_access_plate_test.stl` is printed rear face down.
+- The cut-out of the wheel is derived from the designer's model, so it is not included here. The plate in
+  `screen_access_plate_test.stl` is original and prints rear face down.
   Supports are needed under the plate's thin upper cover and the USB-C tunnel roof; everything else prints without.
 
 ## What to check
