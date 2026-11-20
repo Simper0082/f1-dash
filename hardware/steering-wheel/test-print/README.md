@@ -11,9 +11,11 @@ checked without printing the whole wheel. No paint or colour is set; print every
 
 1. The module drops into the pocket from the back and sits flat against the front lip.
 2. The screen's visible area lines up with the 90.4 x 51 mm window.
-3. The plate's four posts touch the module's corner tabs, and M2.5 x 14 mm screws reach the inserts.
-4. The USB-C plug fits through the side tunnel and reaches the port.
+3. The plate's four posts touch the module's corner tabs, and M2.5 x 20 mm screws reach the inserts, with the
+   module's rear parts clear of the plate's inner face.
+4. The USB-C plug fits through the side tunnel (now on the right side, lower half, seen from the front) and
+   reaches the port.
 5. The M3 heat-set inserts (4.2 mm holes, 6 mm deep) fit, and the plate seats with M3 x 10 mm screws.
 6. A short LED strip fits in the top channel (6 mm wide).
 
-Parts needed: 4 x M2.5 x 14 mm screws, 4 x M3 x 10 mm screws, 4 x M3 heat-set inserts.
+Parts needed: 4 x M2.5 x 20 mm screws, 4 x M3 x 10 mm screws, 4 x M3 heat-set inserts.
