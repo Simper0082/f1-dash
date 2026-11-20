@@ -8,7 +8,7 @@ use anyhow::Error;
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
 
-const URL: &str = "livetiming.formula1.com";
+const URL: &str = "livetiming.formula1.com/signalrcore";
 const HUB: &str = "signalrcore";
 
 const TOPICS: [&str; 17] = [
