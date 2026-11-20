@@ -17,6 +17,7 @@ mod current;
 mod drivers;
 mod health;
 mod realtime;
+mod wheel;
 
 pub struct Context {
     pub state_service: StateService,
@@ -35,6 +36,7 @@ pub async fn start(state_service: StateService, tx: Sender<String>) -> Result<()
         .route("/api/realtime", get(realtime::sse_stream))
         .route("/api/current", get(current::current_state))
         .route("/api/drivers", get(drivers::drivers))
+        .route("/api/wheel", get(wheel::wheel))
         .route("/api/connections", get(connections::current_connections))
         .with_state(context)
         .layer(cors)

@@ -1,0 +1,67 @@
+# Self-hosted f1-dash (with the wheel screen endpoint) for a Proxmox LXC.
+# Builds from this repo so the fork's changes (wheel page, /api/wheel, negotiate fix) are included.
+#
+#   cp .env.example .env   # fill in TUNNEL_TOKEN
+#   docker compose up -d --build
+#
+# Public hostnames (set in the Cloudflare Tunnel, see README.md):
+#   https://f1.${DOMAIN}       -> http://web:3000       (dashboard, /wheel page)
+#   https://f1-live.${DOMAIN}  -> http://realtime:80    (live data + /api/wheel for the board)
+
+name: f1-dash
+
+services:
+  realtime:
+    build:
+      context: ..
+      dockerfile: dockerfile
+      target: realtime
+    restart: unless-stopped
+    ports:
+      - "4000:80" # LAN access, e.g. the board at home: http://<lxc-ip>:4000/api/wheel
+    environment:
+      - RUST_LOG=realtime=info
+      - ADDRESS=0.0.0.0:80
+      # allowed browser origins, separated by ';'
+      - ORIGIN=${ORIGINS:-https://f1.simperandco.com;http://localhost:3000}
+      # To replay a simulator recording instead of the real F1 feed, add:
+      #   - F1_DEV_URL=ws://<host>:8000/ws
+      # (it must not be set at all for the real feed; an empty value breaks the connection)
+
+  api:
+    build:
+      context: ..
+      dockerfile: dockerfile
+      target: api
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=api=info
+      - ADDRESS=0.0.0.0:80
+      - ORIGIN=${ORIGINS:-https://f1.simperandco.com;http://localhost:3000}
+
+  web:
+    build:
+      context: ../dashboard
+      dockerfile: dockerfile
+    restart: unless-stopped
+    depends_on:
+      - realtime
+      - api
+    ports:
+      - "3000:3000" # LAN access to the dashboard
+    environment:
+      # used by the visitor's browser, so it must be the public address
+      - NEXT_PUBLIC_LIVE_URL=${LIVE_URL:-https://f1-live.simperandco.com}
+      # used by the dashboard server, so the internal address is fine
+      - API_URL=http://api:80
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    depends_on:
+      - web
+      - realtime
+    profiles: ["tunnel"]
