@@ -29,6 +29,11 @@ export default function FavoriteDrivers() {
 			try {
 				const res = await fetch(`${env.NEXT_PUBLIC_LIVE_URL}/api/drivers`);
 				const data = await res.json();
+				// the realtime service returns an error object when there is no live session
+				if (!res.ok || !Array.isArray(data)) {
+					setError("no driver list available right now");
+					return;
+				}
 				setDrivers(data);
 			} catch {
 				setError("failed to fetch favorite drivers");
