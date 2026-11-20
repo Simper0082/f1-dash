@@ -32,7 +32,8 @@ struct Negotiation {
 
 async fn negotiate(base_url: &str) -> Result<Negotiation, anyhow::Error> {
     let negotiate_url = format!("https://{}/negotiate", base_url);
-    let client = reqwest::Client::new();
+    // F1's edge rejects requests without a BestHTTP user agent ("Denied")
+    let client = reqwest::Client::builder().user_agent("BestHTTP").build()?;
 
     let options_res = client
         .request(reqwest::Method::OPTIONS, &negotiate_url)
