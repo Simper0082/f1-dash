@@ -4,9 +4,9 @@
 #   cp .env.example .env   # fill in TUNNEL_TOKEN
 #   docker compose up -d --build
 #
-# Public hostnames (set in the Cloudflare Tunnel, see README.md):
-#   https://f1.${DOMAIN}       -> http://web:3000       (dashboard, /wheel page)
-#   https://f1-live.${DOMAIN}  -> http://realtime:80    (live data + /api/wheel for the board)
+# Public hostnames (example names; set yours in .env and in the Cloudflare Tunnel, see README.md):
+#   https://f1.example.com       -> http://web:3000       (dashboard, /wheel page)
+#   https://f1-live.example.com  -> http://realtime:80    (live data + /api/wheel for the board)
 
 name: f1-dash
 
@@ -23,7 +23,7 @@ services:
       - RUST_LOG=realtime=info
       - ADDRESS=0.0.0.0:80
       # allowed browser origins, separated by ';'
-      - ORIGIN=${ORIGINS:-https://f1.simperandco.com;http://localhost:3000}
+      - ORIGIN=${ORIGINS:?set ORIGINS in .env}
       # To replay a simulator recording instead of the real F1 feed, add:
       #   - F1_DEV_URL=ws://<host>:8000/ws
       # (it must not be set at all for the real feed; an empty value breaks the connection)
@@ -37,7 +37,7 @@ services:
     environment:
       - RUST_LOG=api=info
       - ADDRESS=0.0.0.0:80
-      - ORIGIN=${ORIGINS:-https://f1.simperandco.com;http://localhost:3000}
+      - ORIGIN=${ORIGINS:?set ORIGINS in .env}
 
   web:
     build:
@@ -51,7 +51,7 @@ services:
       - "3000:3000" # LAN access to the dashboard
     environment:
       # used by the visitor's browser, so it must be the public address
-      - NEXT_PUBLIC_LIVE_URL=${LIVE_URL:-https://f1-live.simperandco.com}
+      - NEXT_PUBLIC_LIVE_URL=${LIVE_URL:?set LIVE_URL in .env}
       # used by the dashboard server, so the internal address is fine
       - API_URL=http://api:80
 
@@ -60,7 +60,7 @@ services:
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     environment:
-      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:-}
     depends_on:
       - web
       - realtime

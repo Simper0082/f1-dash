@@ -10,8 +10,8 @@ Copy `create-lxc.sh` to the host and run it as root. It makes an unprivileged De
 nesting and keyctl enabled, installs Docker, and clones this repo to `/opt/f1-dash`.
 
 ```
-./create-lxc.sh 502          # 502 = next free ID in your 500 range
-STORAGE=mypool ./create-lxc.sh 502   # to use a different pool (default local-lvm)
+./create-lxc.sh <free-id>            # e.g. ./create-lxc.sh 502; with no ID it uses the next free one
+STORAGE=mypool ./create-lxc.sh       # to use a different storage (default local-lvm)
 ```
 
 Defaults: 2 cores, 4 GB RAM, 24 GB disk. The first image build compiles Rust and Next.js and needs the
@@ -24,10 +24,11 @@ two public hostnames:
 
 | Hostname | Service |
 |---|---|
-| `f1.simperandco.com` | `http://web:3000` |
-| `f1-live.simperandco.com` | `http://realtime:80` |
+| `f1.example.com` | `http://web:3000` |
+| `f1-live.example.com` | `http://realtime:80` |
 
-Copy the tunnel token into `/opt/f1-dash/deploy/.env` as `TUNNEL_TOKEN`.
+Use your own domain in place of `example.com`. Copy the tunnel token into `/opt/f1-dash/deploy/.env` as
+`TUNNEL_TOKEN`, and set `LIVE_URL` and `ORIGINS` there to your hostnames. `.env` is git-ignored; never commit it.
 
 ## 3. Start it
 
@@ -40,9 +41,9 @@ Without `--profile tunnel` the stack runs LAN-only.
 
 ## 4. Check it
 
-- Dashboard: `https://f1.simperandco.com` (LAN: `http://<lxc-ip>:3000`)
-- Wheel preview: `https://f1.simperandco.com/wheel?driver=1`
-- Board data: `https://f1-live.simperandco.com/api/wheel?driver=1` (LAN: `http://<lxc-ip>:4000/api/wheel?driver=1`)
+- Dashboard: `https://f1.example.com` (LAN: `http://<lxc-ip>:3000`)
+- Wheel preview: `https://f1.example.com/wheel?driver=1`
+- Board data: `https://f1-live.example.com/api/wheel?driver=1` (LAN: `http://<lxc-ip>:4000/api/wheel?driver=1`)
 
 Outside a session the endpoint answers with `"live": false` and nulls. The board should show its idle
 screen in that case.
@@ -59,7 +60,7 @@ and age, pit stops, last and best lap, interval, and best-lap delta to P1.
 - `ORIGINS` and `LIVE_URL` in `.env` must match your hostnames. Add your LAN address to `ORIGINS` if you
   open the dashboard from `http://<lxc-ip>:3000`.
 - The live data endpoints are public read-only. If you want to lock them to the board, add a Cloudflare
-  WAF or Access rule on `f1-live.simperandco.com`.
+  WAF or Access rule on `f1-live.example.com`.
 - Update: `cd /opt/f1-dash && git pull && cd deploy && docker compose --profile tunnel up -d --build`.
 - Not tested on real Proxmox hardware or with a Docker build in the authoring environment (no Docker
   daemon there); the Rust crate builds and its tests pass.

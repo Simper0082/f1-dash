@@ -8,7 +8,7 @@ and still an X1 Carbon project (re-slice for P1S).
 `screen_access_plate_print.stl` is the separate rear plate, oriented rear face down for printing.
 `screen_access_plate_assembled.stl` is the same part in its place on the wheel (for fit checks).
 
-## Dimensions come from the module spec project
+## Screen module dimensions
 
 Module 94.5 x 62.0 mm, 12.3 mm thick (4.9 mm at the screen edge), four M2.5 brass inserts on an
 85.84 x 53.77 mm pattern (centres), stock screw head 8.71 mm, 2.9 mm clearance hole.
@@ -36,5 +36,5 @@ four M2.5 screws go in from the back through the plate and posts into the module
 - The posts assume the module's corner tabs are 4.9 mm thick (the thickness at the screen edge).
   Check the fit with a test print before printing the whole wheel.
 - USB-C power: a 13.6 x 9.6 mm tunnel runs from the module's port out through the left side of the wheel
-  (left when viewed from the front). The port position comes from the module spec notes: 7.4 mm above the
+  (left when viewed from the front). The port position comes from the module measurements: 7.4 mm above the
   screen centre and 6.15 mm behind the glass. The TF slot has no opening (not hot-swapped).

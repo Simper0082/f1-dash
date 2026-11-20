@@ -5,7 +5,7 @@ set -euo pipefail
 
 CTID="${1:-$(pvesh get /cluster/nextid)}"
 HOSTNAME="${HOSTNAME_OVERRIDE:-f1-dash}"
-STORAGE="${STORAGE:-local-lvm}"   # where the container disk lives
+STORAGE="${STORAGE:-local-lvm}"   # Proxmox storage for the container disk (override: STORAGE=mypool ./create-lxc.sh)
 DISK_GB="${DISK_GB:-24}"
 CORES="${CORES:-2}"
 RAM_MB="${RAM_MB:-4096}"            # the Rust/Next builds need ~3-4 GB; this can be lowered afterwards
