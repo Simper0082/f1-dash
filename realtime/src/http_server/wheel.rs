@@ -116,8 +116,8 @@ pub async fn wheel(
             "in_pit": timing.and_then(|t| t.get("InPit")).and_then(|v| v.as_bool()),
             "last_lap": timing.and_then(|t| text(t.pointer("/LastLapTime/Value"))),
             "best_lap": my_best,
-            "interval": timing.and_then(|t| text(t.pointer("/IntervalToPositionAhead/Value"))),
-            "gap_to_leader": timing.and_then(|t| text(t.get("GapToLeader"))),
+            "interval": timing.and_then(|t| text(t.pointer("/IntervalToPositionAhead/Value"))).filter(|v| !v.starts_with("LAP")),
+            "gap_to_leader": timing.and_then(|t| text(t.get("GapToLeader"))).filter(|v| !v.starts_with("LAP")),
             "best_delta_to_p1": best_delta,
         })),
     )

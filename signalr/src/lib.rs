@@ -87,7 +87,15 @@ pub struct SignalrClient {
 }
 
 pub async fn create_client(base_url: &str, _hub: &str) -> Result<SignalrClient, anyhow::Error> {
-    let negotiation = negotiate(base_url).await?;
+    // With F1_DEV_URL set we talk to the local simulator, so skip the real negotiate call.
+    let negotiation = if env::var_os("F1_DEV_URL").is_some() {
+        Negotiation {
+            connection_token: None,
+            cookie: String::new(),
+        }
+    } else {
+        negotiate(base_url).await?
+    };
 
     let mut ws_url = Url::parse(&format!("wss://{}", base_url))?;
     if let Some(ref token) = negotiation.connection_token {

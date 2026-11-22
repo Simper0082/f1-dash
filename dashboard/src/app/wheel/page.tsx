@@ -67,7 +67,9 @@ function Wheel() {
 		lapToSeconds(myBest) !== null && lapToSeconds(leaderBest) !== null
 			? (lapToSeconds(myBest) as number) - (lapToSeconds(leaderBest) as number)
 			: null;
-	const interval = timing?.IntervalToPositionAhead?.Value;
+	// The feed gives the leader "LAP n" here, which is not a gap: treat it as no car ahead.
+	const rawInterval = timing?.IntervalToPositionAhead?.Value;
+	const interval = rawInterval && !String(rawInterval).startsWith("LAP") ? rawInterval : undefined;
 
 	const track = getTrackStatusMessage(state?.TrackStatus ? parseInt(state.TrackStatus.Status) : undefined);
 	const weather = state?.WeatherData;
