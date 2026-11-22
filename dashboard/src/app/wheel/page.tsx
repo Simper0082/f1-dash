@@ -41,7 +41,18 @@ const REASON_BANNER_SECONDS = 20;
 const PIT_EXIT_BANNER_SECONDS = 8;
 const PENALTY_BANNER_SECONDS = 20;
 
-type BannerSpec = { key: string; bg: string; fg: string; title: string; detail?: string; flash?: boolean };
+type BannerSpec = { key: string; bg: string; fg: string; title: string; detail?: string; flash?: boolean; logo?: string };
+
+// "Red Bull Racing" -> "red-bull-racing"; the same name the ESP32 uses for /teams/<slug>.bmp on the SD card
+const teamSlug = (name?: string) => (name ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+const readableOn = (hex: string) => {
+	const n = parseInt(hex.replace("#", ""), 16);
+	const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+	return lum > 0.6 ? "#111" : "#fff";
+};
+
+const SC_YELLOW = "#facc15";
 
 function useWheelExtra(driverNr: string): WheelExtra | null {
 	const [extra, setExtra] = useState<WheelExtra | null>(null);
@@ -65,7 +76,7 @@ function useWheelExtra(driverNr: string): WheelExtra | null {
 	return extra;
 }
 
-function buildBanners(extra: WheelExtra | null): BannerSpec[] {
+function buildBanners(extra: WheelExtra | null, teamHex: string, logo?: string): BannerSpec[] {
 	if (!extra) return [];
 	const out: BannerSpec[] = [];
 	const pen = extra.penalty;
@@ -74,12 +85,13 @@ function buildBanners(extra: WheelExtra | null): BannerSpec[] {
 	}
 	const pit = extra.pit;
 	if (pit?.in_pit) {
-		out.push({ key: "pit", bg: "#facc15", fg: "#111", title: "IN PIT", detail: pit.in_for_s != null ? `${pit.in_for_s.toFixed(1)} s` : undefined });
+		out.push({ key: "pit", bg: teamHex, fg: readableOn(teamHex), logo, title: "IN PIT", detail: pit.in_for_s != null ? `${pit.in_for_s.toFixed(1)} s` : undefined });
 	} else if (pit?.last_lane_s != null && (pit.last_out_ago_s ?? 99) < PIT_EXIT_BANNER_SECONDS) {
 		out.push({
 			key: "exit",
-			bg: "#facc15",
-			fg: "#111",
+			bg: teamHex,
+			fg: readableOn(teamHex),
+			logo,
 			title: "PIT EXIT",
 			detail: `LANE ${pit.last_lane_s.toFixed(1)} s · BOX ~${(pit.last_box_s_est ?? 3).toFixed(0)} s est.`,
 		});
@@ -87,11 +99,11 @@ function buildBanners(extra: WheelExtra | null): BannerSpec[] {
 	const t = extra.track;
 	if (t && t.kind !== "clear" && (t.age_s ?? 0) < SC_BANNER_SECONDS) {
 		const label = { sc: "SAFETY CAR DEPLOYED", vsc: "VIRTUAL SAFETY CAR", yellow: "YELLOW FLAG", red: "RED FLAG" }[t.kind] ?? t.kind.toUpperCase();
-		out.push({ key: "track", bg: t.kind === "red" ? "#dc2626" : "#facc15", fg: t.kind === "red" ? "#fff" : "#111", title: label, flash: t.kind === "sc" || t.kind === "vsc" });
+		out.push({ key: "track", bg: t.kind === "red" ? "#dc2626" : SC_YELLOW, fg: t.kind === "red" ? "#fff" : "#111", title: label, flash: t.kind === "sc" || t.kind === "vsc" });
 	}
 	// the reason usually arrives well after the deployment, so it has its own window
 	if (t && t.kind !== "clear" && t.reason && (t.reason.age_s ?? 0) < REASON_BANNER_SECONDS) {
-		out.push({ key: "reason", bg: "#3f3f46", fg: "#f2f2f2", title: "REASON", detail: t.reason.text });
+		out.push({ key: "reason", bg: SC_YELLOW, fg: "#111", title: "REASON", detail: t.reason.text });
 	}
 	return out.slice(0, 2);
 }
@@ -114,7 +126,6 @@ export default function WheelPage() {
 function Wheel() {
 	const driverNr = useSearchParams().get("driver") ?? "3";
 	const extra = useWheelExtra(driverNr);
-	const banners = buildBanners(extra);
 
 	const stores = useStores();
 	const { handleInitial, handleUpdate } = useDataEngine(stores);
@@ -147,6 +158,8 @@ function Wheel() {
 	const unitLabel = temperatureUnit === "fahrenheit" ? "°F" : "°C";
 	const lapCount = state?.LapCount;
 	const teamColour = driver?.TeamColour ? `#${driver.TeamColour}` : "#4b5563";
+	const logoUrl = driver?.TeamName ? `/wheel-logos/${teamSlug(driver.TeamName)}.png` : undefined;
+	const banners = buildBanners(extra, teamColour, logoUrl);
 
 	return (
 		<div className="flex min-h-screen items-center justify-center bg-black">
@@ -181,7 +194,7 @@ function Wheel() {
 					{banners.map((b) => (
 						<div
 							key={b.key}
-							className="flex flex-col items-center justify-center rounded-lg px-3 text-center font-semibold shadow-lg"
+							className="flex items-center justify-between rounded-lg px-3 shadow-lg"
 							style={{
 								minHeight: 72,
 								background: b.bg,
@@ -189,8 +202,12 @@ function Wheel() {
 								animation: b.flash ? "wheelflash 1s steps(1) infinite" : undefined,
 							}}
 						>
-							<span className="whitespace-nowrap text-[28px] leading-tight">{b.title}</span>
-							{b.detail ? <span className="line-clamp-2 max-w-full text-[15px] font-medium leading-tight">{b.detail}</span> : null}
+							<BannerLogo src={b.logo} />
+							<div className="flex min-w-0 flex-1 flex-col items-center justify-center text-center font-semibold">
+								<span className="whitespace-nowrap text-[28px] leading-tight">{b.title}</span>
+								{b.detail ? <span className="line-clamp-2 max-w-full text-[15px] font-medium leading-tight">{b.detail}</span> : null}
+							</div>
+							<BannerLogo src={b.logo} />
 						</div>
 					))}
 				</div>
@@ -275,6 +292,16 @@ function Wheel() {
 					)}
 				</div>
 			</div>
+		</div>
+	);
+}
+
+function BannerLogo({ src }: { src?: string }) {
+	// a fixed box keeps the text centred even when the logo file is missing
+	return (
+		<div className="flex shrink-0 items-center justify-center" style={{ width: 56, height: 56 }}>
+			{/* eslint-disable-next-line @next/next/no-img-element */}
+			{src ? <img src={src} alt="" style={{ maxWidth: 56, maxHeight: 56 }} onError={(e) => (e.currentTarget.style.display = "none")} /> : null}
 		</div>
 	);
 }

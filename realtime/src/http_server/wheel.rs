@@ -24,6 +24,15 @@ fn text(v: Option<&Value>) -> Option<String> {
     }
 }
 
+/// "Red Bull Racing" -> "red-bull-racing", the file name used for team logos
+fn slug(name: &str) -> String {
+    name.to_lowercase()
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|p| !p.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
 fn number(v: Option<&Value>) -> Option<f64> {
     match v {
         Some(Value::String(s)) => s.parse().ok(),
@@ -243,6 +252,8 @@ pub async fn wheel(
                 "number": nr,
                 "tla": driver.and_then(|d| text(d.get("Tla"))),
                 "team_colour": driver.and_then(|d| text(d.get("TeamColour"))),
+                "team": driver.and_then(|d| text(d.get("TeamName"))),
+                "team_slug": driver.and_then(|d| text(d.get("TeamName"))).map(|n| slug(&n)),
             },
             "position": timing.and_then(|t| text(t.get("Position"))),
             "cars": cars,
