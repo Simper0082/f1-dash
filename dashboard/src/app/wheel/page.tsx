@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { useDataEngine } from "@/hooks/useDataEngine";
@@ -12,6 +12,7 @@ import { useSettingsStore } from "@/stores/useSettingsStore";
 
 import { getTrackStatusMessage } from "@/lib/getTrackStatusMessage";
 import { convertTemperature } from "@/lib/temperature";
+import { env } from "@/env";
 
 // Compact 480 x 320 landscape screen for a steering wheel display (e.g. a 3.5" ESP32-S3 board).
 // Usage: /wheel?driver=3   (driver = racing number, defaults to 3)
@@ -26,6 +27,74 @@ const TYRE_COLORS: Record<string, { ring: string; letter: string }> = {
 	INTERMEDIATE: { ring: "#2fb34a", letter: "I" },
 	WET: { ring: "#3b82f6", letter: "W" },
 };
+
+
+// Extra live info from the realtime service (/api/wheel), polled once a second.
+type WheelExtra = {
+	track?: { kind: string; age_s?: number | null; reason?: { text: string; age_s?: number | null } | null };
+	pit?: { in_pit?: boolean | null; in_for_s?: number | null; last_lane_s?: number | null; last_box_s_est?: number | null; last_out_ago_s?: number | null };
+	penalty?: { type: string; reason: string; served: boolean; age_s?: number | null } | null;
+};
+
+const SC_BANNER_SECONDS = 45;
+const REASON_BANNER_SECONDS = 20;
+const PIT_EXIT_BANNER_SECONDS = 8;
+const PENALTY_BANNER_SECONDS = 20;
+
+type BannerSpec = { key: string; bg: string; fg: string; title: string; detail?: string; flash?: boolean };
+
+function useWheelExtra(driverNr: string): WheelExtra | null {
+	const [extra, setExtra] = useState<WheelExtra | null>(null);
+	useEffect(() => {
+		let stop = false;
+		const tick = async () => {
+			try {
+				const res = await fetch(`${env.NEXT_PUBLIC_LIVE_URL}/api/wheel?driver=${driverNr}`);
+				if (!stop && res.ok) setExtra(await res.json());
+			} catch {
+				// keep the last value, the next poll will retry
+			}
+		};
+		tick();
+		const id = setInterval(tick, 1000);
+		return () => {
+			stop = true;
+			clearInterval(id);
+		};
+	}, [driverNr]);
+	return extra;
+}
+
+function buildBanners(extra: WheelExtra | null): BannerSpec[] {
+	if (!extra) return [];
+	const out: BannerSpec[] = [];
+	const pen = extra.penalty;
+	if (pen && !pen.served && (pen.age_s ?? 0) < PENALTY_BANNER_SECONDS) {
+		out.push({ key: "pen", bg: "#dc2626", fg: "#fff", title: pen.type.replace("SECOND", "SEC"), detail: pen.reason, flash: true });
+	}
+	const pit = extra.pit;
+	if (pit?.in_pit) {
+		out.push({ key: "pit", bg: "#facc15", fg: "#111", title: "IN PIT", detail: pit.in_for_s != null ? `${pit.in_for_s.toFixed(1)} s` : undefined });
+	} else if (pit?.last_lane_s != null && (pit.last_out_ago_s ?? 99) < PIT_EXIT_BANNER_SECONDS) {
+		out.push({
+			key: "exit",
+			bg: "#facc15",
+			fg: "#111",
+			title: "PIT EXIT",
+			detail: `LANE ${pit.last_lane_s.toFixed(1)} s · BOX ~${(pit.last_box_s_est ?? 3).toFixed(0)} s est.`,
+		});
+	}
+	const t = extra.track;
+	if (t && t.kind !== "clear" && (t.age_s ?? 0) < SC_BANNER_SECONDS) {
+		const label = { sc: "SAFETY CAR DEPLOYED", vsc: "VIRTUAL SAFETY CAR", yellow: "YELLOW FLAG", red: "RED FLAG" }[t.kind] ?? t.kind.toUpperCase();
+		out.push({ key: "track", bg: t.kind === "red" ? "#dc2626" : "#facc15", fg: t.kind === "red" ? "#fff" : "#111", title: label, flash: t.kind === "sc" || t.kind === "vsc" });
+	}
+	// the reason usually arrives well after the deployment, so it has its own window
+	if (t && t.kind !== "clear" && t.reason && (t.reason.age_s ?? 0) < REASON_BANNER_SECONDS) {
+		out.push({ key: "reason", bg: "#3f3f46", fg: "#f2f2f2", title: "REASON", detail: t.reason.text });
+	}
+	return out.slice(0, 2);
+}
 
 const lapToSeconds = (value: string | undefined): number | null => {
 	if (!value) return null;
@@ -44,6 +113,8 @@ export default function WheelPage() {
 
 function Wheel() {
 	const driverNr = useSearchParams().get("driver") ?? "3";
+	const extra = useWheelExtra(driverNr);
+	const banners = buildBanners(extra);
 
 	const stores = useStores();
 	const { handleInitial, handleUpdate } = useDataEngine(stores);
@@ -103,6 +174,25 @@ function Wheel() {
 							? `AIR ${convertTemperature(parseFloat(weather.AirTemp), temperatureUnit)}${unitLabel} · TRACK ${convertTemperature(parseFloat(weather.TrackTemp), temperatureUnit)}${unitLabel}`
 							: ""}
 					</span>
+				</div>
+
+				<style>{`@keyframes wheelflash{0%,49%{opacity:1}50%,100%{opacity:.35}}`}</style>
+				<div className="absolute flex flex-col gap-1" style={{ left: 12, right: 12, top: "50%", transform: "translateY(-50%)", zIndex: 10 }}>
+					{banners.map((b) => (
+						<div
+							key={b.key}
+							className="flex flex-col items-center justify-center rounded-lg px-3 text-center font-semibold shadow-lg"
+							style={{
+								minHeight: 72,
+								background: b.bg,
+								color: b.fg,
+								animation: b.flash ? "wheelflash 1s steps(1) infinite" : undefined,
+							}}
+						>
+							<span className="whitespace-nowrap text-[28px] leading-tight">{b.title}</span>
+							{b.detail ? <span className="line-clamp-2 max-w-full text-[15px] font-medium leading-tight">{b.detail}</span> : null}
+						</div>
+					))}
 				</div>
 
 				<div className="absolute left-0 w-1" style={{ top: 30, height: 290, background: teamColour }} />
