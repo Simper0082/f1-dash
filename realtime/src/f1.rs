@@ -49,6 +49,7 @@ pub async fn ingest_f1(
                 return Ok(());
             }
 
+            state_service.note_update(&update.topic, &update.data, &update.timestamp);
             let payload = json!({ update.topic: update.data });
 
             if let Err(err) = update_sender.send(payload.to_string()) {

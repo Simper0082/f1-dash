@@ -8,6 +8,7 @@ use crate::services::state_service::StateService;
 mod f1;
 mod http_server;
 mod services {
+    pub mod pit_tracker;
     pub mod state_service;
 }
 

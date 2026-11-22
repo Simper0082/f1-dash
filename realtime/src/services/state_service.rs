@@ -1,17 +1,21 @@
 use anyhow::Error;
 use serde_json::Value;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;
+
+use super::pit_tracker::{PitRecord, PitTracker};
 
 #[derive(Clone)]
 pub struct StateService {
     state: Arc<RwLock<Value>>,
+    pits: Arc<Mutex<PitTracker>>,
 }
 
 impl StateService {
     pub fn new() -> Self {
         Self {
             state: Arc::new(RwLock::new(Value::Object(serde_json::Map::new()))),
+            pits: Arc::new(Mutex::new(PitTracker::default())),
         }
     }
 
@@ -29,6 +33,18 @@ impl StateService {
         let mut state = self.state.write().await;
         *state = new_state;
         Ok(())
+    }
+
+    /// feed timestamp of every update, used to time pit stops
+    pub fn note_update(&self, topic: &str, data: &Value, ts: &str) {
+        if let Ok(mut p) = self.pits.lock() {
+            p.note(topic, data, ts);
+        }
+    }
+
+    pub fn pit_snapshot(&self, nr: &str) -> (Option<f64>, PitRecord) {
+        let p = self.pits.lock().unwrap();
+        (p.now, p.drivers.get(nr).cloned().unwrap_or_default())
     }
 
     pub async fn update_state(&self, update: Value) -> Result<(), Error> {

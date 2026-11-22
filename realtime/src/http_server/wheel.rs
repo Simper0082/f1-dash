@@ -40,6 +40,126 @@ fn lap_seconds(v: &str) -> Option<f64> {
     }
 }
 
+
+const BOX_SECONDS_ESTIMATE: f64 = 3.0;
+
+fn rcm_messages(state: &Value) -> Vec<&Value> {
+    match state.pointer("/RaceControlMessages/Messages") {
+        Some(Value::Array(a)) => a.iter().collect(),
+        Some(Value::Object(o)) => {
+            let mut keyed: Vec<(usize, &Value)> = o
+                .iter()
+                .map(|(k, v)| (k.parse().unwrap_or(0), v))
+                .collect();
+            keyed.sort_by_key(|(k, _)| *k);
+            keyed.into_iter().map(|(_, v)| v).collect()
+        }
+        _ => vec![],
+    }
+}
+
+fn msg_text(m: &Value) -> &str {
+    m.get("Message").and_then(|v| v.as_str()).unwrap_or("")
+}
+
+fn msg_secs(m: &Value) -> Option<f64> {
+    m.get("Utc")
+        .and_then(|v| v.as_str())
+        .and_then(crate::services::pit_tracker::iso_secs)
+}
+
+/// drops a trailing "(20:33:38)" style timestamp
+fn strip_stamp(s: &str) -> &str {
+    match s.rfind(" (") {
+        Some(i) if s.ends_with(')') && s[i..].chars().filter(|c| *c == ':').count() >= 1 => &s[..i],
+        _ => s,
+    }
+}
+
+/// Safety-car / VSC / yellow / red banner info taken from the race control history.
+fn track_event(state: &Value, msgs: &[&Value], now: Option<f64>) -> Value {
+    let code = text(state.pointer("/TrackStatus/Status")).unwrap_or_default();
+    let kind = match code.as_str() {
+        "2" => "yellow",
+        "4" => "sc",
+        "5" => "red",
+        "6" | "7" => "vsc",
+        _ => "clear",
+    };
+    if kind == "clear" {
+        return json!({ "kind": "clear" });
+    }
+
+    let is_trigger = |m: &&&Value| -> bool {
+        let cat = m.get("Category").and_then(|v| v.as_str());
+        let status = m.get("Status").and_then(|v| v.as_str());
+        let mode = m.get("Mode").and_then(|v| v.as_str()).unwrap_or("");
+        let flag = m.get("Flag").and_then(|v| v.as_str());
+        match kind {
+            "sc" => cat == Some("SafetyCar") && status == Some("DEPLOYED") && !mode.contains("VIRTUAL"),
+            "vsc" => cat == Some("SafetyCar") && status == Some("DEPLOYED") && mode.contains("VIRTUAL"),
+            "red" => flag == Some("RED"),
+            _ => matches!(flag, Some("YELLOW") | Some("DOUBLE YELLOW")),
+        }
+    };
+    let trigger = msgs.iter().rev().find(is_trigger);
+    let since = trigger.and_then(|m| msg_secs(m));
+
+    // first "incident noted" message after the deployment is the reason
+    let reason = since.and_then(|t0| {
+        msgs.iter()
+            .filter(|m| msg_secs(m).is_some_and(|t| t >= t0))
+            .find(|m| {
+                let t = msg_text(m);
+                t.contains("INCIDENT INVOLVING") && t.contains("NOTED")
+            })
+            .map(|m| {
+                let t = strip_stamp(msg_text(m));
+                let t = t.replacen(" NOTED", "", 1);
+                json!({ "text": t, "age_s": now.zip(msg_secs(m)).map(|(n, a)| (n - a).max(0.0).round()) })
+            })
+    });
+
+    json!({
+        "kind": kind,
+        "sector": trigger.and_then(|m| m.get("Sector")).cloned(),
+        "age_s": now.zip(since).map(|(n, a)| (n - a).max(0.0).round()),
+        "reason": reason,
+    })
+}
+
+/// Latest penalty handed to this car, with whether it has been served yet.
+fn penalty_event(msgs: &[&Value], nr: &str, now: Option<f64>) -> Value {
+    let needle = format!(" FOR CAR {nr} (");
+    let mine = |m: &&&Value| msg_text(m).contains(&needle);
+    let given = msgs.iter().rev().find(|m| {
+        let t = msg_text(m);
+        mine(m)
+            && t.starts_with("FIA STEWARDS: ")
+            && !t.contains("PENALTY SERVED")
+            && (t.contains("PENALTY") || t.contains("GRID DROP") || t.contains("DISQUALIFIED"))
+    });
+    let Some(given) = given else { return Value::Null };
+
+    let t = strip_stamp(msg_text(given));
+    let body = t.trim_start_matches("FIA STEWARDS: ");
+    let (kind, rest) = body.split_once(&needle).unwrap_or((body, ""));
+    let reason = rest.split_once(") - ").map(|(_, r)| r).unwrap_or("");
+
+    let at = msg_secs(given);
+    let served = msgs.iter().any(|m| {
+        let t = msg_text(m);
+        mine(&m) && t.contains("PENALTY SERVED") && msg_secs(m) >= at
+    });
+
+    json!({
+        "type": kind,
+        "reason": reason,
+        "served": served,
+        "age_s": now.zip(at).map(|(n, a)| (n - a).max(0.0).round()),
+    })
+}
+
 /// Small summary of the live state for one driver, meant for tiny clients (the steering wheel
 /// screen). Polling this every second or so costs well under 1 KB per response.
 pub async fn wheel(
@@ -91,6 +211,24 @@ pub async fn wheel(
 
     let session = state.get("SessionInfo");
 
+    let (tracker_now, pit_rec) = ctx.state_service.pit_snapshot(&nr);
+    let now = state
+        .pointer("/Heartbeat/Utc")
+        .and_then(|v| v.as_str())
+        .and_then(crate::services::pit_tracker::iso_secs)
+        .or(tracker_now);
+    let msgs = rcm_messages(&state);
+    let in_pit_now = timing.and_then(|t| t.get("InPit")).and_then(|v| v.as_bool());
+    let pit = json!({
+        "in_pit": in_pit_now,
+        "in_for_s": now.zip(pit_rec.in_at.filter(|_| in_pit_now == Some(true))).map(|(n, a)| ((n - a).max(0.0) * 10.0).round() / 10.0),
+        "last_lane_s": pit_rec.last_lane_s,
+        "last_box_s_est": pit_rec.last_lane_s.map(|_| BOX_SECONDS_ESTIMATE),
+        "box_is_estimate": true,
+        "last_out_ago_s": now.zip(pit_rec.last_out_at).map(|(n, a)| (n - a).max(0.0).round()),
+        "stops_timed": pit_rec.stops,
+    });
+
     (
         StatusCode::OK,
         axum::Json(json!({
@@ -119,6 +257,10 @@ pub async fn wheel(
             "interval": timing.and_then(|t| text(t.pointer("/IntervalToPositionAhead/Value"))).filter(|v| !v.starts_with("LAP")),
             "gap_to_leader": timing.and_then(|t| text(t.get("GapToLeader"))).filter(|v| !v.starts_with("LAP")),
             "best_delta_to_p1": best_delta,
+            "feed_utc": state.pointer("/Heartbeat/Utc"),
+            "track": track_event(&state, &msgs, now),
+            "pit": pit,
+            "penalty": penalty_event(&msgs, &nr, now),
         })),
     )
 }
